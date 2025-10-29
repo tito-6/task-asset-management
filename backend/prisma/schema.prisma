@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  manager
+  agency_user
+  employee
+}
+
+enum AssetType {
+  SosyalMedya
+  WebSitesi
+  Analitik
+  Reklam
+  Entegrasyon
+  Emlak
+  Profesyonel
+}
+
+enum AssetStatus {
+  Aktif
+  YOK
+}
+
+enum TwoFactorStatus {
+  SMS
+  Yok
+  AuthenticatorApp
+}
+
+enum Priority {
+  High
+  Medium
+  Low
+}
+
+enum TaskStatus {
+  ToDo
+  InProgress
+  AwaitingConfirmation
+  Done
+}
+
+model Company {
+  id      Int     @id @default(autoincrement())
+  name    String  @unique
+  users   User[]
+  assets  Asset[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id             Int      @id @default(autoincrement())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  phone          String
+  role           UserRole @default(employee)
+  company        Company  @relation(fields: [companyId], references: [id])
+  companyId      Int
+  createdTasks   Task[]   @relation("TaskCreator")
+  handledTasks   Task[]   @relation("TaskHandler")
+  responsibleFor Asset[]  @relation("AssetResponsible")
+  passwordAudit  PasswordChangeLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Asset {
+  id                Int       @id @default(autoincrement())
+  company           Company   @relation(fields: [companyId], references: [id])
+  companyId         Int
+  brand             String?   // Brand/Profile name (e.g., "Model Sanayi Merkezi", "Model Kuyum Merkezi")
+  type              AssetType
+  url               String
+  username          String
+  passwordEncrypted String
+  passwordIv        String
+  passwordTag       String
+  responsibleUser   User?     @relation("AssetResponsible", fields: [responsibleUserId], references: [id])
+  responsibleUserId Int?
+  email             String
+  status            AssetStatus
+  twoFactorStatus   TwoFactorStatus
+  priority          Priority
+  tasks             Task[]
+  passwordLogs      PasswordChangeLog[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([responsibleUserId])
+  @@index([brand])
+}
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  asset       Asset?     @relation(fields: [assetId], references: [id])
+  assetId     Int?
+  title       String
+  description String
+  status      TaskStatus @default(ToDo)
+  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
+  createdById Int
+  handler     User       @relation("TaskHandler", fields: [handlerId], references: [id])
+  handlerId   Int
+  dueDate     DateTime?
+  files       Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+  @@index([handlerId])
+}
+
+model PasswordChangeLog {
+  id          Int      @id @default(autoincrement())
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  assetId     Int
+  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedById Int
+  timestamp   DateTime @default(now())
+}

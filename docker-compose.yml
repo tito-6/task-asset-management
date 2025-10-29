@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: asset_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    command: npm run start:prod
+    depends_on:
+      - postgres
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/asset_management?schema=public
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend:/usr/src/app/backend
+      - /usr/src/app/node_modules
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+    command: npm run preview -- --host 0.0.0.0 --port 5173
+    depends_on:
+      - backend
+    env_file:
+      - ./frontend/.env
+    environment:
+      VITE_API_BASE_URL: http://backend:4000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/usr/src/app/frontend
+      - /usr/src/app/node_modules
+
+volumes:
+  pgdata:
