@@ -17,6 +17,7 @@ const taskNotificationUserSelect = {
   name: true,
   phone: true,
   email: true,
+  whatsappApiKey: true,
   companyId: true
 } as const;
 
@@ -26,11 +27,14 @@ const taskQuerySchema = z.object({
 });
 
 const taskCreateSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
   handlerId: z.number().int(),
   assetId: z.number().int().optional(),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : val,
+    z.string().datetime().nullable().optional()
+  ),
   files: z.array(z.string()).optional(),
   status: TaskStatusEnum.default("To Do")
 });
@@ -119,12 +123,14 @@ router.post("/", requireAuth, async (req: Request, res: Response, next: NextFunc
       {
         name: task.handler.name,
         phone: task.handler.phone,
-        email: task.handler.email
+        email: task.handler.email,
+        whatsappApiKey: task.handler.whatsappApiKey ?? undefined
       },
       {
         name: task.createdBy.name,
         phone: task.createdBy.phone,
-        email: task.createdBy.email
+        email: task.createdBy.email,
+        whatsappApiKey: task.createdBy.whatsappApiKey ?? undefined
       },
       { title: task.title, description: task.description }
     );
@@ -212,7 +218,9 @@ router.put(
           handlerId: payload.handlerId,
           assetId: payload.assetId,
           status: payload.status ? toPrismaTaskStatus(payload.status) : undefined,
-          dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
+          dueDate: payload.dueDate !== undefined 
+            ? (payload.dueDate ? new Date(payload.dueDate) : null)
+            : undefined,
           files:
             payload.files ?? (Array.isArray(existing.files) ? existing.files : [])
         },
@@ -260,5 +268,51 @@ router.put(
     }
   }
 );
+
+// DELETE /tasks/:id - Delete a task
+router.delete("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Not authenticated" });
+      return;
+    }
+
+    const taskId = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(taskId)) {
+      res.status(400).json({ message: "Invalid task ID" });
+      return;
+    }
+
+    const existing = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        createdBy: { select: { companyId: true } },
+        handler: { select: { companyId: true } }
+      }
+    });
+
+    if (!existing) {
+      res.status(404).json({ message: "Task not found" });
+      return;
+    }
+
+    // Check if user belongs to the same company
+    if (
+      existing.createdBy.companyId !== req.user.companyId &&
+      existing.handler.companyId !== req.user.companyId
+    ) {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    await prisma.task.delete({
+      where: { id: taskId }
+    });
+
+    res.json({ message: "Task deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

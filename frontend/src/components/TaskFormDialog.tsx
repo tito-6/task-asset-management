@@ -74,6 +74,8 @@ const TaskFormDialog = ({
     onClose();
   };
 
+  const isValid = formValues.title.trim().length > 0 && formValues.description.trim().length > 0;
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{title}</DialogTitle>
@@ -86,6 +88,9 @@ const TaskFormDialog = ({
               handleChange("title", event.target.value)
             }
             fullWidth
+            required
+            error={formValues.title.trim().length === 0}
+            helperText={formValues.title.trim().length === 0 ? "Title is required" : ""}
           />
           <TextField
             label="Description"
@@ -96,6 +101,9 @@ const TaskFormDialog = ({
             fullWidth
             multiline
             minRows={3}
+            required
+            error={formValues.description.trim().length === 0}
+            helperText={formValues.description.trim().length === 0 ? "Description is required" : ""}
           />
           <FormControl fullWidth>
             <InputLabel id="handler-label">Assign To</InputLabel>
@@ -169,7 +177,7 @@ const TaskFormDialog = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit}>
+        <Button variant="contained" onClick={handleSubmit} disabled={!isValid}>
           Save
         </Button>
       </DialogActions>

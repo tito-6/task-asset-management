@@ -3,37 +3,6 @@ import type { TaskStatus, TaskSummary } from "@assetmanagement/common-types";
 
 import { baseQuery } from "../../services/baseQuery.js";
 
-type TasksEndpointBuilder = {
-  query<TResult, TQueryArg>(definition: {
-    query: (arg: TQueryArg) => {
-      url: string;
-      method: string;
-      body?: unknown;
-    };
-    providesTags?:
-      | Array<{ type: "Tasks"; id: string | number }>
-      | ((
-          result: TResult | undefined,
-          error: unknown,
-          arg: TQueryArg
-        ) => Array<{ type: "Tasks"; id: string | number }>);
-  }): unknown;
-  mutation<TResult, TArg>(definition: {
-    query: (arg: TArg) => {
-      url: string;
-      method: string;
-      body?: unknown;
-    };
-    invalidatesTags?:
-      | Array<{ type: "Tasks"; id: string | number }>
-      | ((
-          result: TResult | undefined,
-          error: unknown,
-          arg: TArg
-        ) => Array<{ type: "Tasks"; id: string | number }>);
-  }): unknown;
-};
-
 export type CreateTaskPayload = {
   title: string;
   description: string;
@@ -56,7 +25,7 @@ export const tasksApi = createApi({
   reducerPath: "tasksApi",
   baseQuery,
   tagTypes: ["Tasks"],
-  endpoints: (builder: TasksEndpointBuilder) => ({
+  endpoints: (builder) => ({
     getTasks: builder.query<TaskListResponse, void>({
       query: () => ({
         url: "/tasks",
@@ -89,6 +58,16 @@ export const tasksApi = createApi({
         _error: unknown,
         { taskId }: { taskId: number }
       ) => [{ type: "Tasks", id: taskId }, { type: "Tasks", id: "LIST" }]
+    }),
+    deleteTask: builder.mutation<{ message: string }, number>({
+      query: (taskId: number) => ({
+        url: `/tasks/${taskId}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: (_result, _error, taskId) => [
+        { type: "Tasks", id: taskId },
+        { type: "Tasks", id: "LIST" }
+      ]
     })
   })
 });
@@ -96,5 +75,6 @@ export const tasksApi = createApi({
 export const {
   useGetTasksQuery,
   useCreateTaskMutation,
-  useUpdateTaskMutation
+  useUpdateTaskMutation,
+  useDeleteTaskMutation
 } = tasksApi;

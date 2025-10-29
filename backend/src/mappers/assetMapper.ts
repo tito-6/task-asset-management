@@ -12,7 +12,7 @@ import {
 type ResponsibleUser = Pick<User, "id" | "name" | "phone" | "email">;
 
 export type AssetWithResponsible = Asset & {
-  responsibleUser: ResponsibleUser;
+  responsibleUser: ResponsibleUser | null;
 };
 
 export type AssetDetails = AssetSummary & {

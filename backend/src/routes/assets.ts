@@ -388,4 +388,44 @@ router.get(
   }
 );
 
+// DELETE /assets/:id - Delete an asset
+router.delete("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Not authenticated" });
+      return;
+    }
+
+    const assetId = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(assetId)) {
+      res.status(400).json({ message: "Invalid asset ID" });
+      return;
+    }
+
+    const existing = await prisma.asset.findUnique({
+      where: { id: assetId },
+      select: { companyId: true }
+    });
+
+    if (!existing) {
+      res.status(404).json({ message: "Asset not found" });
+      return;
+    }
+
+    // Check if user belongs to the same company or is admin
+    if (existing.companyId !== req.user.companyId && req.user.role !== "admin") {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    await prisma.asset.delete({
+      where: { id: assetId }
+    });
+
+    res.json({ message: "Asset deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

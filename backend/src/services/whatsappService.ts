@@ -1,7 +1,5 @@
 import fetch from "node-fetch";
 
-import { env } from "../config/env.js";
-
 import type {
   AssetNotificationPayload,
   Contact,
@@ -10,11 +8,14 @@ import type {
 
 const CALLMEBOT_ENDPOINT = "https://api.callmebot.com/whatsapp.php";
 
-const sendWhatsAppMessage = async (phone: string, message: string): Promise<void> => {
+const sendWhatsAppMessage = async (phone: string, message: string, apiKey: string): Promise<void> => {
+  // Remove + prefix if present (CallMeBot expects phone without +)
+  const cleanPhone = phone.replace(/^\+/, '');
+  
   const params = new URLSearchParams({
-    phone,
+    phone: cleanPhone,
     text: message,
-    apikey: env.CALLMEBOT_API_KEY
+    apikey: apiKey
   });
 
   const response = await fetch(`${CALLMEBOT_ENDPOINT}?${params.toString()}`, {
@@ -32,8 +33,11 @@ export const sendNewTaskNotification = async (
   creator: Contact,
   task: TaskNotificationPayload
 ): Promise<void> => {
+  if (!handler.whatsappApiKey) {
+    throw new Error(`WhatsApp API key not configured for user ${handler.name}`);
+  }
   const message = `New Task: ${task.title}. Assigned by: ${creator.name}. Details: ${task.description}`;
-  await sendWhatsAppMessage(handler.phone, message);
+  await sendWhatsAppMessage(handler.phone, message, handler.whatsappApiKey);
 };
 
 export const sendPasswordChangeNotification = async (
@@ -41,6 +45,9 @@ export const sendPasswordChangeNotification = async (
   changer: Contact,
   asset: AssetNotificationPayload
 ): Promise<void> => {
+  if (!responsible.whatsappApiKey) {
+    throw new Error(`WhatsApp API key not configured for user ${responsible.name}`);
+  }
   const message = `Security Alert: The password for ${asset.url} (${asset.username}) was just changed by ${changer.name}.`;
-  await sendWhatsAppMessage(responsible.phone, message);
+  await sendWhatsAppMessage(responsible.phone, message, responsible.whatsappApiKey);
 };

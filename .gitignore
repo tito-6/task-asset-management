@@ -19,6 +19,16 @@ coverage/
 .env.*
 !.env.example
 
+# CSV files with sensitive data
+*.csv
+Dijital Assetler.csv
+
+# Credential files
+credentials/
+secrets/
+*.key
+*.pem
+
 # Editors
 .vscode/
 .idea/

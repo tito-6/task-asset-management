@@ -4,7 +4,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "target": "ES2021",
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
     "allowJs": false,

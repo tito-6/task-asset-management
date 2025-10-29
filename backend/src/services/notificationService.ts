@@ -10,9 +10,11 @@ import {
 import type { AssetNotificationPayload, Contact, TaskNotificationPayload } from "./types.js";
 
 const logNotificationErrors = (results: PromiseSettledResult<void>[], context: string): void => {
-  results.forEach((result) => {
+  results.forEach((result, index) => {
     if (result.status === "rejected") {
-      console.error(`Failed to send ${context}`, result.reason);
+      console.error(`Failed to send ${context} (attempt ${index + 1}):`, result.reason);
+    } else {
+      console.log(`Successfully sent ${context} (attempt ${index + 1})`);
     }
   });
 };

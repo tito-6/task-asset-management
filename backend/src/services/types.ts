@@ -2,6 +2,7 @@ export type Contact = {
   name: string;
   phone: string;
   email: string;
+  whatsappApiKey?: string;
 };
 
 export type TaskNotificationPayload = {

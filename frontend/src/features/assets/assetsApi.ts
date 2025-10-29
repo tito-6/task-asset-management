@@ -3,39 +3,9 @@ import type { AssetSummary } from "@assetmanagement/common-types";
 
 import { baseQuery } from "../../services/baseQuery.js";
 
-type AssetsEndpointBuilder = {
-  query<TResult, TQueryArg>(definition: {
-    query: (arg: TQueryArg) => {
-      url: string;
-      method: string;
-      body?: unknown;
-    };
-    providesTags?:
-      | Array<{ type: "Assets"; id: string | number }>
-      | ((
-          result: TResult | undefined,
-          error: unknown,
-          arg: TQueryArg
-        ) => Array<{ type: "Assets"; id: string | number }>);
-  }): unknown;
-  mutation<TResult, TArg>(definition: {
-    query: (arg: TArg) => {
-      url: string;
-      method: string;
-      body?: unknown;
-    };
-    invalidatesTags?:
-      | Array<{ type: "Assets"; id: string | number }>
-      | ((
-          result: TResult | undefined,
-          error: unknown,
-          arg: TArg
-        ) => Array<{ type: "Assets"; id: string | number }>);
-  }): unknown;
-};
-
 export type CreateAssetPayload = {
   companyId: number;
+  brand?: string;
   type: string;
   url: string;
   username: string;
@@ -63,7 +33,7 @@ export const assetsApi = createApi({
   reducerPath: "assetsApi",
   baseQuery,
   tagTypes: ["Assets"],
-  endpoints: (builder: AssetsEndpointBuilder) => ({
+  endpoints: (builder) => ({
     getCompanyAssets: builder.query<AssetListResponse, number>({
       query: (companyId: number) => ({
         url: `/assets/companies/${companyId}`,
@@ -104,6 +74,16 @@ export const assetsApi = createApi({
         _error: unknown,
         { assetId }: { assetId: number }
       ) => [{ type: "Assets", id: assetId }, { type: "Assets", id: "LIST" }]
+    }),
+    deleteAsset: builder.mutation<{ message: string }, number>({
+      query: (assetId: number) => ({
+        url: `/assets/${assetId}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: (_result, _error, assetId) => [
+        { type: "Assets", id: assetId },
+        { type: "Assets", id: "LIST" }
+      ]
     })
   })
 });
@@ -112,5 +92,6 @@ export const {
   useGetCompanyAssetsQuery,
   useGetAssetDetailsQuery,
   useCreateAssetMutation,
-  useUpdateAssetMutation
+  useUpdateAssetMutation,
+  useDeleteAssetMutation
 } = assetsApi;

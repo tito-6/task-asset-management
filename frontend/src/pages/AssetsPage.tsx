@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import {
   Box,
@@ -7,6 +7,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   IconButton,
   Paper,
@@ -18,11 +19,17 @@ import {
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import FacebookIcon from "@mui/icons-material/Facebook";
 import TwitterIcon from "@mui/icons-material/Twitter";
 import InstagramIcon from "@mui/icons-material/Instagram";
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
+import YouTubeIcon from "@mui/icons-material/YouTube";
+import PinterestIcon from "@mui/icons-material/Pinterest";
+import TelegramIcon from "@mui/icons-material/Telegram";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import LanguageIcon from "@mui/icons-material/Language";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import CampaignIcon from "@mui/icons-material/Campaign";
@@ -33,6 +40,9 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SmsIcon from "@mui/icons-material/Sms";
 import PhonelinkLockIcon from "@mui/icons-material/PhonelinkLock";
+import MusicNoteIcon from "@mui/icons-material/MusicNote"; // For TikTok
+import SearchIcon from "@mui/icons-material/Search"; // For Google
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera"; // For Snapchat
 import {
   DataGrid,
   type GridColDef,
@@ -55,18 +65,20 @@ import {
   useCreateAssetMutation,
   useGetAssetDetailsQuery,
   useGetCompanyAssetsQuery,
-  useUpdateAssetMutation
+  useUpdateAssetMutation,
+  useDeleteAssetMutation
 } from "../features/assets/assetsApi.js";
 import { useGetCompanyUsersQuery } from "../features/users/usersApi.js";
 
 // Brand names
 const BRANDS = [
+  "Tümü", // All assets
   "Model Sanayi Merkezi",
   "Model Kuyum Merkezi",
-  "İNNO Gayrimenkul",
+  "INNOGY",
   "Bio Rota",
-  "Net İnşaat",
-  "Som Prefabrik"
+  "NET Insaat",
+  "SOM Prefabrik"
 ];
 
 const AssetsPage = () => {
@@ -89,6 +101,9 @@ const AssetsPage = () => {
 
   const [createAsset, { isLoading: isCreating }] = useCreateAssetMutation();
   const [updateAsset, { isLoading: isUpdating }] = useUpdateAssetMutation();
+  const [deleteAsset] = useDeleteAssetMutation();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [assetToDelete, setAssetToDelete] = useState<AssetSummary | null>(null);
 
   const {
     data: assetDetails,
@@ -98,15 +113,57 @@ const AssetsPage = () => {
     skip: !passwordAssetId
   });
 
+  // Debug: Log everything about the query
+  useEffect(() => {
+    console.log('=== PASSWORD QUERY DEBUG ===');
+    console.log('passwordAssetId:', passwordAssetId);
+    console.log('isFetchingDetails:', isFetchingDetails);
+    console.log('assetDetails:', assetDetails);
+    if (assetDetails) {
+      console.log('assetDetails.asset:', assetDetails.asset);
+      console.log('Password value:', assetDetails.asset.password);
+      console.log('Password type:', typeof assetDetails.asset.password);
+      console.log('Password length:', assetDetails.asset.password?.length);
+      console.log('Full asset object:', JSON.stringify(assetDetails.asset, null, 2));
+    }
+    console.log('=== END DEBUG ===');
+  }, [passwordAssetId, assetDetails, isFetchingDetails]);
+
   const currentBrand = BRANDS[currentTab];
 
   // Filter assets by current brand (or show unassigned assets in first tab)
   const rows = useMemo<AssetSummary[]>(() => {
     const allAssets = (data?.assets ?? []).filter(Boolean);
-    // Show assets matching current brand OR assets without a brand (unassigned)
-    return allAssets.filter((asset: AssetSummary) => 
-      asset.brand === currentBrand || !asset.brand
-    );
+    
+    // If "Tümü" (All) is selected, show all assets
+    if (currentBrand === "Tümü") {
+      return allAssets;
+    }
+    
+    // For specific brands, use fuzzy matching
+    return allAssets.filter((asset: AssetSummary) => {
+      if (!asset.brand) return false; // Don't show unbranded assets in specific brand tabs
+      
+      const assetBrandLower = asset.brand.toLowerCase();
+      const currentBrandLower = currentBrand.toLowerCase();
+      
+      // Direct match
+      if (assetBrandLower === currentBrandLower) return true;
+      
+      // Fuzzy matching for similar brand names
+      if (currentBrand === "INNO" && (
+        assetBrandLower.includes("inno") || 
+        assetBrandLower.includes("innogy") ||
+        assetBrandLower.includes("fb inno") ||
+        assetBrandLower.includes("zapier")
+      )) return true;
+      
+      if (currentBrand === "Bio Rota" && assetBrandLower.includes("biorota")) return true;
+      if (currentBrand === "NET Insaat" && (assetBrandLower.includes("net") || assetBrandLower === "netidm.com")) return true;
+      if (currentBrand === "SOM Prefabrik" && (assetBrandLower.includes("som") || assetBrandLower.includes("prefabrik"))) return true;
+      
+      return false;
+    });
   }, [data, currentBrand]);
 
   const users = usersData?.users ?? [];
@@ -150,7 +207,7 @@ const AssetsPage = () => {
   const handleFormSubmit = async (values: AssetFormValues) => {
     try {
       if (dialogMode === "create") {
-        await createAsset(values).unwrap();
+        await createAsset({ ...values, password: values.password || "" }).unwrap();
         setSnackbarMessage("Asset created successfully");
       } else if (selectedAsset) {
         const { password, ...rest } = values;
@@ -170,6 +227,29 @@ const AssetsPage = () => {
       console.error("Failed to save asset:", error);
       setSnackbarMessage(`Failed to save asset: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  const handleDeleteClick = (asset: AssetSummary) => {
+    setAssetToDelete(asset);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (assetToDelete) {
+      try {
+        await deleteAsset(assetToDelete.id).unwrap();
+        setSnackbarMessage("Asset deleted successfully");
+      } catch (error) {
+        setSnackbarMessage("Failed to delete asset");
+      }
+    }
+    setDeleteConfirmOpen(false);
+    setAssetToDelete(null);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmOpen(false);
+    setAssetToDelete(null);
   };
 
   // Helper function to get icon for asset type
@@ -194,6 +274,73 @@ const AssetsPage = () => {
     }
   };
 
+  // Get platform-specific icon based on URL or username
+  const getPlatformIcon = (url: string, username: string, type: string) => {
+    const urlLower = url.toLowerCase();
+    const usernameLower = username.toLowerCase();
+    
+    // Social Media platforms
+    if (urlLower.includes('facebook.com') || urlLower.includes('fb.com')) {
+      return <FacebookIcon fontSize="small" color="primary" />;
+    }
+    if (urlLower.includes('instagram.com')) {
+      return <InstagramIcon fontSize="small" sx={{ color: '#E4405F' }} />;
+    }
+    if (urlLower.includes('tiktok.com')) {
+      return <MusicNoteIcon fontSize="small" sx={{ color: '#000000' }} />;
+    }
+    if (urlLower.includes('twitter.com') || urlLower.includes('x.com')) {
+      return <TwitterIcon fontSize="small" sx={{ color: '#1DA1F2' }} />;
+    }
+    if (urlLower.includes('linkedin.com')) {
+      return <LinkedInIcon fontSize="small" sx={{ color: '#0A66C2' }} />;
+    }
+    if (urlLower.includes('youtube.com')) {
+      return <YouTubeIcon fontSize="small" sx={{ color: '#FF0000' }} />;
+    }
+    if (urlLower.includes('pinterest.com')) {
+      return <PinterestIcon fontSize="small" sx={{ color: '#E60023' }} />;
+    }
+    if (urlLower.includes('telegram')) {
+      return <TelegramIcon fontSize="small" sx={{ color: '#0088cc' }} />;
+    }
+    if (urlLower.includes('whatsapp')) {
+      return <WhatsAppIcon fontSize="small" sx={{ color: '#25D366' }} />;
+    }
+    if (urlLower.includes('snapchat')) {
+      return <PhotoCameraIcon fontSize="small" sx={{ color: '#FFFC00' }} />;
+    }
+    
+    // Google services
+    if (urlLower.includes('google.com') || urlLower.includes('analytics') || 
+        urlLower.includes('search console') || urlLower.includes('tag manager')) {
+      return <SearchIcon fontSize="small" sx={{ color: '#4285F4' }} />;
+    }
+    
+    // Integration/Automation
+    if (urlLower.includes('zapier') || usernameLower.includes('zapier')) {
+      return <IntegrationInstructionsIcon fontSize="small" sx={{ color: '#FF4A00' }} />;
+    }
+    
+    // Real estate platforms
+    if (urlLower.includes('sahibinden') || urlLower.includes('emlakjet')) {
+      return <HomeWorkIcon fontSize="small" sx={{ color: '#FFD500' }} />;
+    }
+    
+    // Meta/Facebook Business
+    if (urlLower.includes('business.facebook') || urlLower.includes('meta')) {
+      return <BusinessCenterIcon fontSize="small" sx={{ color: '#0668E1' }} />;
+    }
+    
+    // Ads platforms
+    if (urlLower.includes('ads') || type === 'Reklam') {
+      return <CampaignIcon fontSize="small" sx={{ color: '#34A853' }} />;
+    }
+    
+    // Default icons based on type
+    return getTypeIcon(type);
+  };
+
   const columns: GridColDef<AssetSummary>[] = [
     {
       field: "brand",
@@ -216,7 +363,7 @@ const AssetsPage = () => {
       resizable: true,
       renderCell: (params: GridRenderCellParams<AssetSummary>) => (
         <Stack direction="row" spacing={1} alignItems="center">
-          {getTypeIcon(params.row.type)}
+          {getPlatformIcon(params.row.url, params.row.username, params.row.type)}
           <Typography variant="body2">{params.row.type}</Typography>
         </Stack>
       )
@@ -296,13 +443,27 @@ const AssetsPage = () => {
           <IconButton
             size="small"
             onClick={() => {
+              console.log('EYE ICON CLICKED - Asset ID:', params.row.id);
               setPasswordAssetId(params.row.id);
             }}
+            title="View Password"
           >
             <VisibilityIcon fontSize="small" />
           </IconButton>
-          <IconButton size="small" onClick={() => handleOpenEdit(params.row)}>
+          <IconButton 
+            size="small" 
+            onClick={() => handleOpenEdit(params.row)}
+            title="Edit Asset"
+          >
             <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDeleteClick(params.row)}
+            title="Delete Asset"
+          >
+            <DeleteIcon fontSize="small" />
           </IconButton>
         </Stack>
       )
@@ -406,25 +567,88 @@ const AssetsPage = () => {
         />
       )}
 
-      <Dialog open={Boolean(passwordAssetId)} onClose={() => setPasswordAssetId(null)}>
+      <Dialog open={Boolean(passwordAssetId)} onClose={() => setPasswordAssetId(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Password Details</DialogTitle>
         <DialogContent>
           {isFetchingDetails ? (
             <Typography>Loading…</Typography>
           ) : (
-            <Stack spacing={1}>
-              <Typography variant="subtitle2">URL</Typography>
-              <Typography>{assetDetails?.asset.url ?? ""}</Typography>
-              <Typography variant="subtitle2">Username</Typography>
-              <Typography>{assetDetails?.asset.username ?? ""}</Typography>
-              <Typography variant="subtitle2">Password</Typography>
-              <Typography>{assetDetails?.asset.password ?? ""}</Typography>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  URL
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.default' }}>
+                  <Typography sx={{ wordBreak: 'break-all' }}>
+                    {assetDetails?.asset.url ?? "N/A"}
+                  </Typography>
+                </Paper>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Username
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.default' }}>
+                  <Typography>{assetDetails?.asset.username ?? "N/A"}</Typography>
+                </Paper>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Password
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.default' }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography 
+                      sx={{ 
+                        flex: 1,
+                        fontFamily: 'monospace',
+                        fontSize: '1.1rem',
+                        color: (assetDetails?.asset.password && assetDetails.asset.password.length > 0) ? 'text.primary' : 'text.disabled'
+                      }}
+                    >
+                      {(assetDetails?.asset.password && assetDetails.asset.password.length > 0) 
+                        ? assetDetails.asset.password 
+                        : "(No password set)"}
+                    </Typography>
+                    {(assetDetails?.asset.password && assetDetails.asset.password.length > 0) && (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          if (assetDetails?.asset.password) {
+                            navigator.clipboard.writeText(assetDetails.asset.password);
+                            setSnackbarMessage("Password copied to clipboard!");
+                          }
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    )}
+                  </Stack>
+                </Paper>
+              </Box>
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
           <Button startIcon={<CloseIcon />} onClick={() => setPasswordAssetId(null)}>
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onClose={handleDeleteCancel}>
+        <DialogTitle>Delete Asset?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete the asset "{assetToDelete?.url}"? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
